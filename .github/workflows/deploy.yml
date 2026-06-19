@@ -1,0 +1,35 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - prod
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy via SSM
+        run: |
+          aws ssm send-command \
+            --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "GitHub Actions deploy" \
+            --parameters '{"commands":[
+              "cd /var/www/laravel",
+              "sudo git pull origin main",
+              "sudo -u www-data composer install --no-dev --optimize-autoloader",
+              "cd /var/www/laravel && sudo php artisan package:discover",
+              "cd /var/www/laravel && sudo php artisan winter:up",
+              "cd /var/www/laravel && sudo php artisan route:clear && sudo php artisan route:cache",
+              "cd /var/www/laravel && sudo php artisan winter:mirror public --relative",
+              "sudo chown -R www-data:www-data /var/www/laravel /mnt/efs/storage /mnt/efs/uploads",
+              "sudo systemctl restart php8.2-fpm"
+            ]}' \
+            --output text
