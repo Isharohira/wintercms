@@ -23,7 +23,7 @@ jobs:
             --comment "GitHub Actions deploy" \
             --parameters '{"commands":[
               "cd /var/www/laravel",
-              "sudo git pull origin main",
+              "sudo git pull origin prod",
               "sudo -u www-data composer install --no-dev --optimize-autoloader",
               "cd /var/www/laravel && sudo php artisan package:discover",
               "cd /var/www/laravel && sudo php artisan winter:up",
