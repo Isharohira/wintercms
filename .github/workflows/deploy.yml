@@ -16,25 +16,24 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Run migration on standalone EC2
+      - name: Deploy via SSM
         run: |
           aws ssm send-command \
             --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
-            --comment "Run DB migration once" \
+            --comment "GitHub Actions deploy" \
             --parameters '{"commands":[
               "cd /var/www/laravel",
-              "git pull origin prod",
-              "composer install --no-dev --optimize-autoloader",
-              "php artisan package:discover",
-              "php artisan winter:up",
-              "php artisan route:clear",
-              "php artisan route:cache",
-              "php artisan winter:mirror public --relative",
-              "chown -R www-data:www-data /var/www/laravel /mnt/efs/storage /mnt/efs/uploads",
-              "systemctl restart php8.2-fpm"
+              "sudo git pull origin prod",
+              "sudo -u www-data composer install --no-dev --optimize-autoloader",
+              "cd /var/www/laravel && sudo php artisan package:discover",
+              "cd /var/www/laravel && sudo php artisan winter:up",
+              "cd /var/www/laravel && sudo php artisan route:clear && sudo php artisan route:cache",
+              "cd /var/www/laravel && sudo php artisan winter:mirror public --relative",
+              "sudo chown -R www-data:www-data /var/www/laravel /mnt/efs/storage /mnt/efs/uploads",
+              "sudo systemctl restart php8.2-fpm"
             ]}' \
-            --output text
+            --output text  
 
       - name: Wait for migration to finish
         run: sleep 20
