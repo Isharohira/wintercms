@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - prod
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -15,21 +16,57 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Deploy via SSM
+      - name: Pick one instance for migration
+        id: pick
+        run: |
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:aws:autoscaling:groupName,Values=laravel-ASG" \
+                      "Name=instance-state-name,Values=running" \
+            --query "Reservations[0].Instances[0].InstanceId" \
+            --output text)
+          echo "Selected instance: $INSTANCE_ID"
+          echo "instance_id=$INSTANCE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Run migration on selected instance
         run: |
           aws ssm send-command \
-            --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
+            --instance-ids "${{ steps.pick.outputs.instance_id }}" \
             --document-name "AWS-RunShellScript" \
-            --comment "GitHub Actions deploy" \
+            --comment "Run DB migration once" \
             --parameters '{"commands":[
               "cd /var/www/laravel",
-              "sudo git pull origin prod",
-              "sudo -u www-data composer install --no-dev --optimize-autoloader",
-              "cd /var/www/laravel && sudo php artisan package:discover",
-              "cd /var/www/laravel && sudo php artisan winter:up",
-              "cd /var/www/laravel && sudo php artisan route:clear && sudo php artisan route:cache",
-              "cd /var/www/laravel && sudo php artisan winter:mirror public --relative",
-              "sudo chown -R www-data:www-data /var/www/laravel /mnt/efs/storage /mnt/efs/uploads",
-              "sudo systemctl restart php8.2-fpm"
+              "git config --global --add safe.directory /var/www/laravel",
+              "git pull origin prod",
+              "composer install --no-dev --optimize-autoloader",
+              "php artisan package:discover",
+              "php artisan winter:up",
+              "php artisan route:clear",
+              "php artisan route:cache",
+              "php artisan winter:mirror public --relative",
+              "chown -R www-data:www-data /var/www/laravel /mnt/efs/storage /mnt/efs/uploads",
+              "systemctl restart php8.2-fpm"
             ]}' \
-            --output text   
+            --output text
+
+      - name: Wait for migration to finish
+        run: sleep 20
+
+      - name: Deploy to all ASG instances (no migration)
+        run: |
+          aws ssm send-command \
+            --targets "Key=tag:aws:autoscaling:groupName,Values=laravel-ASG" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy code to all instances" \
+            --parameters '{"commands":[
+              "cd /var/www/laravel",
+              "git config --global --add safe.directory /var/www/laravel",
+              "git pull origin prod",
+              "composer install --no-dev --optimize-autoloader",
+              "php artisan package:discover",
+              "php artisan route:clear",
+              "php artisan route:cache",
+              "php artisan winter:mirror public --relative",
+              "chown -R www-data:www-data /var/www/laravel /mnt/efs/storage /mnt/efs/uploads",
+              "systemctl restart php8.2-fpm"
+            ]}' \
+            --output text
