@@ -32,5 +32,4 @@ jobs:
               "sudo chown -R www-data:www-data /var/www/laravel /mnt/efs/storage /mnt/efs/uploads",
               "sudo systemctl restart php8.2-fpm"
             ]}' \
-            --output text
-            
+            --output text   
