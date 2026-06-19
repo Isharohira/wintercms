@@ -24,7 +24,6 @@ jobs:
             --comment "Run DB migration once" \
             --parameters '{"commands":[
               "cd /var/www/laravel",
-              "git config --global --add safe.directory /var/www/laravel",
               "git pull origin prod",
               "composer install --no-dev --optimize-autoloader",
               "php artisan package:discover",
