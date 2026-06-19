@@ -37,23 +37,22 @@ jobs:
 
       - name: Wait for migration to finish
         run: sleep 20
-
-      - name: Deploy to all ASG instances (no migration)
+            
+      - name: Deploy via SSM on ALL VM
         run: |
           aws ssm send-command \
             --targets "Key=tag:aws:autoscaling:groupName,Values=laravel-ASG" \
             --document-name "AWS-RunShellScript" \
-            --comment "Deploy code to ASG instances" \
+            --comment "GitHub Actions deploy" \
             --parameters '{"commands":[
               "cd /var/www/laravel",
-              "git config --global --add safe.directory /var/www/laravel",
-              "git pull origin prod",
-              "composer install --no-dev --optimize-autoloader",
-              "php artisan package:discover",
-              "php artisan route:clear",
-              "php artisan route:cache",
-              "php artisan winter:mirror public --relative",
-              "chown -R www-data:www-data /var/www/laravel /mnt/efs/storage /mnt/efs/uploads",
-              "systemctl restart php8.2-fpm"
+              "sudo git pull origin prod",
+              "sudo -u www-data composer install --no-dev --optimize-autoloader",
+              "cd /var/www/laravel && sudo php artisan package:discover",
+              "cd /var/www/laravel && sudo php artisan winter:up",
+              "cd /var/www/laravel && sudo php artisan route:clear && sudo php artisan route:cache",
+              "cd /var/www/laravel && sudo php artisan winter:mirror public --relative",
+              "sudo chown -R www-data:www-data /var/www/laravel /mnt/efs/storage /mnt/efs/uploads",
+              "sudo systemctl restart php8.2-fpm"
             ]}' \
-            --output text
+            --output text 
