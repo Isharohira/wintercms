@@ -16,21 +16,10 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Pick one instance for migration
-        id: pick
-        run: |
-          INSTANCE_ID=$(aws ec2 describe-instances \
-            --filters "Name=tag:aws:autoscaling:groupName,Values=laravel-ASG" \
-                      "Name=instance-state-name,Values=running" \
-            --query "Reservations[0].Instances[0].InstanceId" \
-            --output text)
-          echo "Selected instance: $INSTANCE_ID"
-          echo "instance_id=$INSTANCE_ID" >> "$GITHUB_OUTPUT"
-
-      - name: Run migration on selected instance
+      - name: Run migration on standalone EC2
         run: |
           aws ssm send-command \
-            --instance-ids "${{ steps.pick.outputs.instance_id }}" \
+            --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
             --comment "Run DB migration once" \
             --parameters '{"commands":[
@@ -56,7 +45,7 @@ jobs:
           aws ssm send-command \
             --targets "Key=tag:aws:autoscaling:groupName,Values=laravel-ASG" \
             --document-name "AWS-RunShellScript" \
-            --comment "Deploy code to all instances" \
+            --comment "Deploy code to ASG instances" \
             --parameters '{"commands":[
               "cd /var/www/laravel",
               "git config --global --add safe.directory /var/www/laravel",
